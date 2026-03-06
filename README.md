@@ -46,32 +46,46 @@ make release-major   # 0.1.0 → 1.0.0
 To make the package public on GHCR, you may need to link it to the repository
 and change its visibility settings the first time.
 
-## Docker
+## Docker 
 
-```sh
-# Build locally
-docker build -t hnhired .
+You can run the app locally by building the image, or you can use the published
+image from GitHub Container Registry.
 
-# Run (mounts ./data so the DB survives restarts)
-docker run -d --name hn-explorer \
-  -v $(pwd)/data:/app/data \
-  -p 8080:8000 \
-  hnhired
-```
-
-## Deploy on Raspberry Pi
-
-After pushing a release tag, GitHub Actions pushes a multi-arch image
-(amd64 + arm64).  On the Pi:
+### Using `docker run`
 
 ```sh
 docker pull ghcr.io/vnturing/hnhired:latest
-docker run -d --name hn-explorer \
-  -v $(pwd)/data:/app/data \
-  --restart unless-stopped \
-  -p 8080:8000 \
+
+docker run -d --name hn-explorer \\
+  -v $(pwd)/data:/app/data \\
+  --restart unless-stopped \\
+  -p 8080:8000 \\
   ghcr.io/vnturing/hnhired:latest
 ```
 
-The container ingests automatically — no crontab needed.
+### Using `docker compose`
 
+Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  hn-explorer:
+    image: ghcr.io/vnturing/hnhired:latest
+    container_name: hn-explorer
+    restart: unless-stopped
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./data:/app/data
+```
+
+Then run:
+
+```sh
+docker compose up -d
+```
+
+The container automatically ingests the latest thread on first startup to 
+populate the database. Every month thereafter (on the 1st at 09:00), it will 
+seamlessly wake up in the background and ingest the new latest thread — no 
+cron jobs or manual intervention needed.
