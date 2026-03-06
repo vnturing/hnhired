@@ -12,7 +12,7 @@ uv run fastapi dev app/main.py
 ```
 
 On first boot the app auto-ingests the latest thread (empty DB).  It then
-re-ingests on the 1st of every month at 09:00.
+re-ingests every day at 09:00.
 
 ## Run tests (red/green TDD)
 
@@ -86,6 +86,6 @@ docker compose up -d
 ```
 
 The container automatically ingests the latest thread on first startup to 
-populate the database. Every month thereafter (on the 1st at 09:00), it will 
-seamlessly wake up in the background and ingest the new latest thread — no 
+populate the database. Every day thereafter (at 09:00 system time), it will 
+seamlessly wake up in the background and ingest the current latest thread — no 
 cron jobs or manual intervention needed.

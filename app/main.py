@@ -68,8 +68,9 @@ async def lifespan(app: FastAPI):
     """Start the background scheduler; run an initial ingest if the DB is empty."""
     scheduler = BackgroundScheduler()
 
-    # Monthly cron: 1st of every month at 09:00.
-    scheduler.add_job(_run_ingest, "cron", day=1, hour=9, minute=0)
+    # Daily cron: every day at 09:00 system time. The thread ID search
+    # ensures we always grab the current month's thread and pull new comments.
+    scheduler.add_job(_run_ingest, "cron", hour=9, minute=0)
     scheduler.start()
 
     # On first boot (empty DB), populate immediately so the UI isn't blank.
