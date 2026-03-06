@@ -35,7 +35,7 @@ _DB_PATH = Path(__file__).parent.parent / "data" / "jobs.db"
 
 def get_db() -> sqlite3.Connection:
     """Open a SQLite connection for the lifetime of one request."""
-    conn = sqlite3.connect(_DB_PATH)
+    conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
     init_db(conn)
     try:
         yield conn
@@ -54,7 +54,7 @@ def _run_ingest() -> None:
         log.warning("Scheduled ingest: could not find a hiring thread")
         return
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(_DB_PATH)
+    conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
     init_db(conn)
     try:
         n = ingest(conn, thread_id=thread_id)
@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
 
     # On first boot (empty DB), populate immediately so the UI isn't blank.
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(_DB_PATH)
+    conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
     init_db(conn)
     try:
         jobs = db_get_jobs(conn)

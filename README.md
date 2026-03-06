@@ -35,7 +35,7 @@ make ingest    # manual one-off ingest
 ## Releasing a new version
 
 Versions follow semver.  Pushing a tag triggers GitHub Actions to build and
-push `vnturing/hnhired:<version>` to Docker Hub.
+push `ghcr.io/[owner]/hnhired:<version>` to GitHub Container Registry.
 
 ```sh
 make release-patch   # 0.1.0 → 0.1.1
@@ -43,9 +43,8 @@ make release-minor   # 0.1.0 → 0.2.0
 make release-major   # 0.1.0 → 1.0.0
 ```
 
-Before the first release, add two secrets to your GitHub repository settings:
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
+To make the package public on GHCR, you may need to link it to the repository
+and change its visibility settings the first time.
 
 ## Docker
 
@@ -66,12 +65,12 @@ After pushing a release tag, GitHub Actions pushes a multi-arch image
 (amd64 + arm64).  On the Pi:
 
 ```sh
-docker pull vnturing/hnhired:latest
+docker pull ghcr.io/vnturing/hnhired:latest
 docker run -d --name hn-explorer \
   -v $(pwd)/data:/app/data \
   --restart unless-stopped \
   -p 8080:8000 \
-  vnturing/hnhired:latest
+  ghcr.io/vnturing/hnhired:latest
 ```
 
 The container ingests automatically — no crontab needed.

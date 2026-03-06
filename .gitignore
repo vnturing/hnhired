@@ -1,3 +1,6 @@
 *Zone.Identifier
 *.db
 app/__pycache__/*
+*.pyc
+__pycache__/*
+.venv/*

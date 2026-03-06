@@ -121,7 +121,7 @@ def _make_mock_urlopen(thread_id: int):
 
 @pytest.fixture
 def db():
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
     init_db(conn)
     yield conn
     conn.close()

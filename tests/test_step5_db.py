@@ -22,7 +22,7 @@ from app.schemas import Job
 @pytest.fixture
 def db():
     """Yield an initialised in-memory SQLite connection."""
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
     init_db(conn)
     yield conn
     conn.close()

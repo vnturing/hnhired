@@ -28,9 +28,9 @@ def extract_company(text: str) -> str:
         Company | Role | Location/Remote | ...
     We rely on this convention as the primary extraction signal.
     """
-    parts = text.split("|")
-    if not parts:
+    if "|" not in text:
         return "Unknown"
+    parts = text.split("|")
     company = parts[0].strip()
     return company if company else "Unknown"
 
@@ -38,10 +38,11 @@ def extract_company(text: str) -> str:
 def extract_role(text: str) -> str:
     """Return the second pipe-separated segment, stripped.
 
-    Returns "Unknown" if there are fewer than two pipe segments.
+    Returns "Unknown" if there are fewer than three pipe segments.
+    (Company | Role | Location).
     """
     parts = text.split("|")
-    if len(parts) < 2:
+    if len(parts) < 3:
         return "Unknown"
     role = parts[1].strip()
     return role if role else "Unknown"
@@ -52,6 +53,11 @@ def extract_role(text: str) -> str:
 # Each entry is (pattern, category).  Patterns are evaluated in order; the
 # first match wins.  More specific patterns must come before general ones.
 _REMOTE_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # Explicit negation or hybrid (catches "no remote info whatsoever")
+    (
+        re.compile(r"\b(no remote|not remote|onsite|hybrid)\b", re.I),
+        "onsite",
+    ),
     # US-only signals
     (
         re.compile(
@@ -63,7 +69,7 @@ _REMOTE_PATTERNS: list[tuple[re.Pattern, str]] = [
     # EU / EMEA signals
     (
         re.compile(
-            r"\b(eu[- ]only|eu remote|europe[an]*\s+remote|emea|uk[- ]only|united kingdom)\b",
+            r"\b(eu[- ]only|eu remote|europe[an]*\s+remote|emea|uk[- ]only|united kingdom|europe|\beu\b)\b",
             re.I,
         ),
         "eu-only",

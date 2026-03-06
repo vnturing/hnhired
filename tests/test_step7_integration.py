@@ -21,7 +21,7 @@ from app.db import init_db, insert_job
 
 @pytest.fixture
 def db_conn():
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
     init_db(conn)
     yield conn
     conn.close()
