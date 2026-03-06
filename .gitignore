@@ -1,0 +1,3 @@
+*Zone.Identifier
+*.db
+app/__pycache__/*

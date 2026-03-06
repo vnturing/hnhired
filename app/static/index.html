@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HN Who's Hiring Explorer</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body x-data="jobExplorer()" x-init="init()">
+
+  <header>
+    <h1>HN Who's Hiring Explorer</h1>
+    <span x-show="!loading" x-text="`${allJobs.length} jobs indexed`"></span>
+  </header>
+
+  <main>
+
+    <!-- ── Filters ── -->
+    <div class="filters">
+      <select x-model="remoteFilter" @change="applyFilters()">
+        <option value="">Any remote type</option>
+        <option value="global">🌍 Global Remote</option>
+        <option value="us-only">🇺🇸 US Only</option>
+        <option value="eu-only">🇪🇺 EU Only</option>
+        <option value="tz-limited">🕐 TZ Limited</option>
+        <option value="onsite">🏢 Onsite / Hybrid</option>
+      </select>
+
+      <input
+        type="text"
+        x-model="techFilter"
+        @input="applyFilters()"
+        placeholder="Filter by tech (python, go…)"
+      />
+
+      <input
+        type="text"
+        x-model="searchFilter"
+        @input="applyFilters()"
+        placeholder="Search company, role…"
+      />
+    </div>
+
+    <!-- ── Result count ── -->
+    <p class="count" x-show="!loading">
+      Showing <strong x-text="filtered.length"></strong> of
+      <strong x-text="allJobs.length"></strong> jobs
+    </p>
+
+    <!-- ── Loading / error ── -->
+    <div class="status" x-show="loading">Loading…</div>
+    <div class="status" x-show="error" x-text="error"></div>
+
+    <!-- ── Job cards ── -->
+    <div class="job-list" x-show="!loading && !error">
+      <template x-for="job in filtered" :key="job.id">
+        <div class="job-card">
+
+          <div class="job-card-header">
+            <span class="job-company" x-text="job.company"></span>
+            <span class="job-remote" x-text="remoteLabel(job.remote_type)"></span>
+          </div>
+
+          <p class="job-role" x-text="job.role"></p>
+
+          <div class="tags">
+            <template x-for="tag in job.tech_tags" :key="tag">
+              <span class="tag" x-text="tag"></span>
+            </template>
+          </div>
+
+          <div class="job-footer">
+            <a :href="hnLink(job.hn_item_id)" target="_blank" rel="noopener">
+              View on HN ↗
+            </a>
+          </div>
+
+        </div>
+      </template>
+
+      <div class="status" x-show="filtered.length === 0 && !loading">
+        No jobs match your filters.
+      </div>
+    </div>
+
+  </main>
+
+  <script src="//unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="/app.js"></script>
+</body>
+</html>

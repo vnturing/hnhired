@@ -1,0 +1,115 @@
+/* styles.css — Deliberate minimalism.
+   No preprocessor, no framework, no build step.
+   Variables for easy theming on the Pi display. */
+
+:root {
+  --bg:          #f6f6ef;   /* HN's classic off-white */
+  --surface:     #ffffff;
+  --border:      #e0ddd8;
+  --accent:      #ff6600;   /* HN orange */
+  --text:        #1a1a1a;
+  --muted:       #828282;
+  --tag-bg:      #eef0f2;
+  --radius:      6px;
+  --max-width:   860px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: Verdana, Geneva, sans-serif;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* ── Layout ── */
+header {
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+header h1 { font-size: 16px; font-weight: bold; }
+header span { font-size: 12px; opacity: .85; }
+
+main {
+  max-width: var(--max-width);
+  margin: 20px auto;
+  padding: 0 16px;
+}
+
+/* ── Filters ── */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.filters select,
+.filters input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text);
+}
+.filters input { flex: 1; min-width: 160px; }
+
+/* ── Job cards ── */
+.job-list { display: flex; flex-direction: column; gap: 10px; }
+
+.job-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.job-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.job-company { font-weight: bold; font-size: 15px; }
+.job-remote {
+  font-size: 12px;
+  background: var(--tag-bg);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.job-role { color: var(--muted); margin-bottom: 8px; }
+
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag {
+  font-size: 11px;
+  background: var(--tag-bg);
+  border-radius: 4px;
+  padding: 2px 7px;
+  color: var(--muted);
+}
+
+.job-footer {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.job-footer a { color: var(--accent); text-decoration: none; }
+.job-footer a:hover { text-decoration: underline; }
+
+/* ── States ── */
+.status {
+  text-align: center;
+  padding: 40px;
+  color: var(--muted);
+}
+.count {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
