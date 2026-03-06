@@ -64,6 +64,8 @@ class TestClassifyRemote:
         assert classify_remote("Remote (US only)") == "us-only"
         assert classify_remote("remote, must be US-based") == "us-only"
         assert classify_remote("USA remote") == "us-only"
+        assert classify_remote("Remote (U.S. only)") == "us-only"
+        assert classify_remote("REMOTE (USA or Canada)") == "us-only"
 
     def test_eu_only(self):
         assert classify_remote("Remote (Europe)") == "eu-only"
@@ -78,6 +80,11 @@ class TestClassifyRemote:
         assert classify_remote("Onsite in San Francisco") == "onsite"
         assert classify_remote("hybrid, NYC") == "onsite"
         assert classify_remote("no remote info whatsoever") == "onsite"
+
+    def test_regional_remote_forces_onsite(self):
+        assert classify_remote("Remote (India)") == "onsite"
+        assert classify_remote("Remote, UK") == "onsite"
+        assert classify_remote("Remote - LATAM") == "onsite"
 
 
 # ── extract_tech_tags ─────────────────────────────────────────────────────────

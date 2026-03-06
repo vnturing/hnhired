@@ -12,23 +12,25 @@ mount.  FastAPI matches routes in registration order, and the StaticFiles mount
 acts as a catch-all for /.  If it came first, it would swallow /api/* requests.
 """
 
+import logging
 import sqlite3
+from contextlib import asynccontextmanager
 from pathlib import Path
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import Depends, FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 
 from app.db import get_jobs as db_get_jobs, init_db
+from app.ingest import find_latest_hiring_thread, ingest
 from app.schemas import Job
 
-app = FastAPI(title="HN Explorer")
-
-# ── Database dependency ───────────────────────────────────────────────────────
-# FastAPI's dependency injection system calls get_db() for each request that
-# declares it as a parameter.  Tests can swap this out via
-# app.dependency_overrides[get_db] = lambda: <test_conn>
+log = logging.getLogger(__name__)
 
 _DB_PATH = Path(__file__).parent.parent / "data" / "jobs.db"
+
+
+# ── Database dependency ───────────────────────────────────────────────────────
 
 
 def get_db() -> sqlite3.Connection:
@@ -39,6 +41,57 @@ def get_db() -> sqlite3.Connection:
         yield conn
     finally:
         conn.close()
+
+
+# ── Scheduled ingestion ───────────────────────────────────────────────────────
+
+
+def _run_ingest() -> None:
+    """Find and ingest the latest 'Who is hiring?' thread."""
+    log.info("Scheduled ingest: starting")
+    thread_id = find_latest_hiring_thread()
+    if not thread_id:
+        log.warning("Scheduled ingest: could not find a hiring thread")
+        return
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(_DB_PATH)
+    init_db(conn)
+    try:
+        n = ingest(conn, thread_id=thread_id)
+        log.info("Scheduled ingest: inserted %d new jobs from thread %d", n, thread_id)
+    finally:
+        conn.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start the background scheduler; run an initial ingest if the DB is empty."""
+    scheduler = BackgroundScheduler()
+
+    # Monthly cron: 1st of every month at 09:00.
+    scheduler.add_job(_run_ingest, "cron", day=1, hour=9, minute=0)
+    scheduler.start()
+
+    # On first boot (empty DB), populate immediately so the UI isn't blank.
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(_DB_PATH)
+    init_db(conn)
+    try:
+        jobs = db_get_jobs(conn)
+        if not jobs:
+            log.info("Database is empty — running initial ingest")
+            _run_ingest()
+    finally:
+        conn.close()
+
+    yield
+
+    scheduler.shutdown(wait=False)
+
+
+# ── App ───────────────────────────────────────────────────────────────────────
+
+app = FastAPI(title="HN Explorer", lifespan=lifespan)
 
 
 # ── Step 1: health ────────────────────────────────────────────────────────────

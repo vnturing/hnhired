@@ -55,19 +55,31 @@ _REMOTE_PATTERNS: list[tuple[re.Pattern, str]] = [
     # US-only signals
     (
         re.compile(
-            r"\b(us[- ]only|us[- ]based|usa\s+remote|united states only)\b", re.I
+            r"\b(us[- ]only|u\.?s\.?[- ]only|us[- ]based|usa\s+remote|united states only|usa\s*(and|or|/)\s*canada)\b",
+            re.I,
         ),
         "us-only",
     ),
     # EU / EMEA signals
     (
-        re.compile(r"\b(eu[- ]only|eu remote|europe[an]*\s+remote|emea)\b", re.I),
+        re.compile(
+            r"\b(eu[- ]only|eu remote|europe[an]*\s+remote|emea|uk[- ]only|united kingdom)\b",
+            re.I,
+        ),
         "eu-only",
     ),
     # Timezone-constrained remote
     (
         re.compile(r"\b(timezone overlap|tz overlap|cet|est overlap)\b", re.I),
         "tz-limited",
+    ),
+    # Regional restricted remote (forces onsite instead of global)
+    (
+        re.compile(
+            r"\bremote\s*[\(\-\,:]\s*(india|uk|united kingdom|canada|latam|america|asia|australia)\b",
+            re.I,
+        ),
+        "onsite",
     ),
     # Truly global remote — checked after regional signals
     (

@@ -6,67 +6,73 @@ browse them with filters — built with FastAPI, Alpine.js, SQLite, and uv.
 ## Run locally
 
 ```sh
-uv sync
+uv sync --all-extras --dev
 uv run fastapi dev app/main.py
 # → http://localhost:8000
 ```
+
+On first boot the app auto-ingests the latest thread (empty DB).  It then
+re-ingests on the 1st of every month at 09:00.
 
 ## Run tests (red/green TDD)
 
 ```sh
 uv run pytest -v
+# or:
+make test
 ```
 
-Tests run in dependency order:
-- `test_step1_health.py`   — health route
-- `test_step2_static.py`   — static file serving
-- `test_step3_jobs_api.py` — /api/jobs shape + filtering
-- `test_step4_parser.py`   — pure extraction functions
-- `test_step5_db.py`       — SQLite persistence layer
-- `test_step6_ingest.py`   — HN API ingestion (mocked)
-- `test_step7_integration.py` — full stack with DB dependency
-
-## Ingest a thread
-
-To fetch and ingest the latest "Who's Hiring?" thread automatically:
+## Makefile helpers
 
 ```sh
-uv run python -m app.ingest
+make dev       # fastapi dev server
+make test      # pytest
+make lint      # ruff check
+make fmt       # black format
+make ingest    # manual one-off ingest
 ```
 
-You can also ingest a specific thread by passing its HN ID (e.g. `https://news.ycombinator.com/item?id=39894820`):
+## Releasing a new version
+
+Versions follow semver.  Pushing a tag triggers GitHub Actions to build and
+push `vnturing/hnhired:<version>` to Docker Hub.
 
 ```sh
-uv run python -m app.ingest 39894820
+make release-patch   # 0.1.0 → 0.1.1
+make release-minor   # 0.1.0 → 0.2.0
+make release-major   # 0.1.0 → 1.0.0
 ```
+
+Before the first release, add two secrets to your GitHub repository settings:
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
 
 ## Docker
 
 ```sh
 # Build locally
-docker build -t hn-explorer .
+docker build -t hnhired .
 
 # Run (mounts ./data so the DB survives restarts)
 docker run -d --name hn-explorer \
   -v $(pwd)/data:/app/data \
   -p 8080:8000 \
-  hn-explorer
+  hnhired
 ```
 
 ## Deploy on Raspberry Pi
 
-On the Pi, after GitHub Actions pushes the multi-arch image:
+After pushing a release tag, GitHub Actions pushes a multi-arch image
+(amd64 + arm64).  On the Pi:
 
 ```sh
-docker pull yourname/hn-explorer:latest
+docker pull vnturing/hnhired:latest
 docker run -d --name hn-explorer \
   -v $(pwd)/data:/app/data \
+  --restart unless-stopped \
   -p 8080:8000 \
-  yourname/hn-explorer:latest
+  vnturing/hnhired:latest
 ```
 
-Ingest monthly (add to crontab):
+The container ingests automatically — no crontab needed.
 
-```sh
-0 9 1 * * docker exec hn-explorer uv run python -m app.ingest
-```
