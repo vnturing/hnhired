@@ -14,6 +14,7 @@ acts as a catch-all for /.  If it came first, it would swallow /api/* requests.
 
 import logging
 import sqlite3
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -80,8 +81,8 @@ async def lifespan(app: FastAPI):
     try:
         jobs = db_get_jobs(conn)
         if not jobs:
-            log.info("Database is empty — running initial ingest")
-            _run_ingest()
+            log.info("Database is empty — kicking off initial ingest in background")
+            threading.Thread(target=_run_ingest, daemon=True).start()
     finally:
         conn.close()
 
