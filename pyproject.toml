@@ -1,6 +1,6 @@
 [project]
 name = "hn-explorer"
-version = "0.1.4"
+version = "0.1.5"
 description = "HN Who's Hiring explorer — FastAPI + Alpine.js, single container"
 requires-python = ">=3.12"
 dependencies = [
