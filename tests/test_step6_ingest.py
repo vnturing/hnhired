@@ -21,7 +21,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 from app.db import init_db, get_jobs
-from app.ingest import ingest, find_latest_hiring_thread, HN_BASE_URL
+from app.ingest import ingest, find_latest_hiring_thread
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

@@ -39,12 +39,18 @@
         @input="applyFilters()"
         placeholder="Search company, role…"
       />
+
+      <!-- Dismissed toggle — only shown if at least one job has been dismissed -->
+      <label class="toggle-dismissed" x-show="dismissedCount > 0">
+        <input type="checkbox" :checked="showDismissed" @change="toggleShowDismissed()" />
+        Show dismissed (<span x-text="dismissedCount"></span>)
+      </label>
     </div>
 
     <!-- ── Result count ── -->
     <p class="count" x-show="!loading">
       Showing <strong x-text="filtered.length"></strong> of
-      <strong x-text="allJobs.length"></strong> jobs
+      <strong x-text="allJobs.length - (showDismissed ? 0 : dismissedCount)"></strong> jobs
     </p>
 
     <!-- ── Loading / error ── -->
@@ -54,11 +60,37 @@
     <!-- ── Job cards ── -->
     <div class="job-list" x-show="!loading && !error">
       <template x-for="job in filtered" :key="job.id">
-        <div class="job-card">
+        <div
+          class="job-card"
+          :class="{
+            'job-card--viewed':    isViewed(job.hn_item_id),
+            'job-card--dismissed': isDismissed(job.hn_item_id)
+          }"
+        >
 
           <div class="job-card-header">
-            <span class="job-company" x-text="job.company"></span>
-            <span class="job-remote" x-text="remoteLabel(job.remote_type)"></span>
+            <div class="job-card-title">
+              <span class="job-company" x-text="job.company"></span>
+              <!-- "opened" badge shown only after the link has been clicked -->
+              <span class="viewed-badge" x-show="isViewed(job.hn_item_id)">✓ opened</span>
+            </div>
+            <div class="job-card-actions">
+              <span class="job-remote" x-text="remoteLabel(job.remote_type)"></span>
+              <!-- Dismiss button — shown on normal cards -->
+              <button
+                class="btn-dismiss"
+                title="Dismiss this job"
+                x-show="!isDismissed(job.hn_item_id)"
+                @click.stop="dismiss(job.hn_item_id)"
+              >✕</button>
+              <!-- Restore button — shown only on dismissed cards when toggle is on -->
+              <button
+                class="btn-restore"
+                title="Restore this job"
+                x-show="isDismissed(job.hn_item_id)"
+                @click.stop="undismiss(job.hn_item_id)"
+              >↩ Restore</button>
+            </div>
           </div>
 
           <p class="job-role" x-text="job.role"></p>
@@ -70,7 +102,12 @@
           </div>
 
           <div class="job-footer">
-            <a :href="hnLink(job.hn_item_id)" target="_blank" rel="noopener">
+            <a
+              :href="hnLink(job.hn_item_id)"
+              target="_blank"
+              rel="noopener"
+              @click="markViewed(job.hn_item_id)"
+            >
               View on HN ↗
             </a>
           </div>

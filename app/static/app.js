@@ -4,8 +4,9 @@
  * State lives entirely in the Alpine component.  Filtering is client-side
  * after the initial fetch so interactions feel instant.
  *
- * The component function is assigned to window so Alpine can find it via
- * x-data="jobExplorer()" in the HTML.
+ * localStorage keys
+ *   hn_viewed    — JSON array of hn_item_id numbers that have been opened
+ *   hn_dismissed — JSON array of hn_item_id numbers that have been dismissed
  */
 function jobExplorer() {
   return {
@@ -20,8 +21,25 @@ function jobExplorer() {
     techFilter: "",
     searchFilter: "",
 
+    // Viewed / dismissed — Sets for O(1) lookup; serialised to localStorage
+    viewedIds: new Set(),
+    dismissedIds: new Set(),
+
+    // When true, dismissed jobs are shown in a muted style instead of hidden
+    showDismissed: false,
+
     // ── Lifecycle ──────────────────────────────────────────────────────────
     async init() {
+      // Rehydrate from localStorage
+      try {
+        const v = localStorage.getItem("hn_viewed");
+        if (v) this.viewedIds = new Set(JSON.parse(v));
+      } catch (_) {}
+      try {
+        const d = localStorage.getItem("hn_dismissed");
+        if (d) this.dismissedIds = new Set(JSON.parse(d));
+      } catch (_) {}
+
       try {
         const resp = await fetch("/api/jobs");
         if (!resp.ok) throw new Error(`API error: ${resp.status}`);
@@ -37,6 +55,11 @@ function jobExplorer() {
     // ── Filtering ──────────────────────────────────────────────────────────
     applyFilters() {
       let jobs = this.allJobs;
+
+      // Hide dismissed jobs unless the user has toggled "show dismissed"
+      if (!this.showDismissed) {
+        jobs = jobs.filter(j => !this.dismissedIds.has(j.hn_item_id));
+      }
 
       if (this.remoteFilter) {
         jobs = jobs.filter(j => j.remote_type === this.remoteFilter);
@@ -59,6 +82,52 @@ function jobExplorer() {
       }
 
       this.filtered = jobs;
+    },
+
+    // ── Viewed / Dismissed actions ─────────────────────────────────────────
+    markViewed(id) {
+      this.viewedIds.add(id);
+      this._saveViewed();
+      // Trigger Alpine reactivity (Sets are not reactive by default)
+      this.viewedIds = new Set(this.viewedIds);
+    },
+
+    dismiss(id) {
+      this.dismissedIds.add(id);
+      this._saveDismissed();
+      this.dismissedIds = new Set(this.dismissedIds);
+      this.applyFilters();
+    },
+
+    undismiss(id) {
+      this.dismissedIds.delete(id);
+      this._saveDismissed();
+      this.dismissedIds = new Set(this.dismissedIds);
+      this.applyFilters();
+    },
+
+    toggleShowDismissed() {
+      this.showDismissed = !this.showDismissed;
+      this.applyFilters();
+    },
+
+    // ── Computed helpers (used in template) ───────────────────────────────
+    isViewed(id)    { return this.viewedIds.has(id); },
+    isDismissed(id) { return this.dismissedIds.has(id); },
+
+    get dismissedCount() { return this.dismissedIds.size; },
+
+    // ── Persistence ────────────────────────────────────────────────────────
+    _saveViewed() {
+      try {
+        localStorage.setItem("hn_viewed", JSON.stringify([...this.viewedIds]));
+      } catch (_) {}
+    },
+
+    _saveDismissed() {
+      try {
+        localStorage.setItem("hn_dismissed", JSON.stringify([...this.dismissedIds]));
+      } catch (_) {}
     },
 
     // ── Helpers ────────────────────────────────────────────────────────────

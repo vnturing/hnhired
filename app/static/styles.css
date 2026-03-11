@@ -12,6 +12,13 @@
   --tag-bg:      #eef0f2;
   --radius:      6px;
   --max-width:   860px;
+
+  /* Viewed / dismissed palette */
+  --viewed-border:  #c8d8c8;
+  --viewed-bg:      #f8faf8;
+  --viewed-badge:   #5a9a5a;
+  --dismissed-bg:   #f9f9f9;
+  --dismissed-text: #b0b0b0;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -48,6 +55,7 @@ main {
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 18px;
+  align-items: center;
 }
 .filters select,
 .filters input {
@@ -60,6 +68,22 @@ main {
 }
 .filters input { flex: 1; min-width: 160px; }
 
+/* Dismissed toggle */
+.toggle-dismissed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.toggle-dismissed input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
 /* ── Job cards ── */
 .job-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -68,7 +92,26 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 16px;
+  transition: opacity 0.2s, border-color 0.2s, background 0.2s;
 }
+
+/* Viewed state — subtle green tint */
+.job-card--viewed {
+  background: var(--viewed-bg);
+  border-color: var(--viewed-border);
+}
+
+/* Dismissed state — heavily muted; rendered only when "show dismissed" toggle is on */
+.job-card--dismissed {
+  opacity: 0.45;
+  background: var(--dismissed-bg);
+  border-style: dashed;
+}
+.job-card--dismissed .job-company,
+.job-card--dismissed .job-role {
+  color: var(--dismissed-text);
+}
+
 .job-card-header {
   display: flex;
   justify-content: space-between;
@@ -76,7 +119,32 @@ main {
   gap: 8px;
   margin-bottom: 6px;
 }
+
+.job-card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.job-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .job-company { font-weight: bold; font-size: 15px; }
+
+/* "✓ opened" badge */
+.viewed-badge {
+  font-size: 11px;
+  color: var(--viewed-badge);
+  font-weight: normal;
+  white-space: nowrap;
+}
+
 .job-remote {
   font-size: 12px;
   background: var(--tag-bg);
@@ -93,6 +161,38 @@ main {
   border-radius: 4px;
   padding: 2px 7px;
   color: var(--muted);
+}
+
+/* ── Dismiss / Restore buttons ── */
+.btn-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 0 2px;
+  line-height: 1;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+.btn-dismiss:hover {
+  color: #c0392b;
+  background: #fdf0ee;
+}
+
+.btn-restore {
+  background: none;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 1px 7px;
+  border-radius: 3px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.btn-restore:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .job-footer {

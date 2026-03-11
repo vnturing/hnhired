@@ -21,7 +21,7 @@ We strip HTML before passing to the parser.
 
 import argparse
 import json
-import re
+import logging
 import sqlite3
 import sys
 import urllib.request
@@ -30,6 +30,8 @@ from pathlib import Path
 
 from app.db import insert_job
 from app.parser import extract_company, extract_role, classify_remote, extract_tech_tags
+
+log = logging.getLogger(__name__)
 
 HN_BASE_URL = "https://hacker-news.firebaseio.com/v0"
 
@@ -65,10 +67,15 @@ def _strip_html(html: str) -> str:
 
 
 def _fetch_item(item_id: int) -> dict | None:
+    """Fetch one HN item, returning None on network/JSON errors."""
     url = f"{HN_BASE_URL}/item/{item_id}.json"
-    with urllib.request.urlopen(url) as resp:
-        data = json.loads(resp.read())
-    return data  # None if item was deleted
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = json.loads(resp.read())
+        return data  # None if item was deleted
+    except (urllib.error.URLError, json.JSONDecodeError, OSError) as exc:
+        log.warning("Failed to fetch HN item %d: %s", item_id, exc)
+        return None
 
 
 # ── Pipeline ──────────────────────────────────────────────────────────────────
@@ -101,12 +108,15 @@ def ingest(conn: sqlite3.Connection, *, thread_id: int) -> int:
     inserted = 0
 
     for comment_id in child_ids:
-        comment = _fetch_item(comment_id)
-        if not comment or comment.get("type") != "comment":
-            continue
-        kwargs = _process_comment(comment)
-        insert_job(conn, **kwargs)
-        inserted += 1
+        try:
+            comment = _fetch_item(comment_id)
+            if not comment or comment.get("type") != "comment":
+                continue
+            kwargs = _process_comment(comment)
+            insert_job(conn, **kwargs)
+            inserted += 1
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Skipping comment %d due to error: %s", comment_id, exc)
 
     return inserted
 

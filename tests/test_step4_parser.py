@@ -14,7 +14,6 @@ Each test group follows the same shape:
   - A "default / fallback" case where no signal is found.
 """
 
-import pytest
 from app.parser import extract_company, extract_role, classify_remote, extract_tech_tags
 
 # ── extract_company ───────────────────────────────────────────────────────────
