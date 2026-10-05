@@ -83,7 +83,7 @@ FAKE_OTHER_STORIES = {
 def _make_mock_urlopen(thread_id: int):
     """Return a mock for urllib.request.urlopen that returns canned HN JSON."""
 
-    def urlopen_side_effect(url: str):
+    def urlopen_side_effect(url: str, *args, **kwargs):
         mock_response = MagicMock()
         mock_response.__enter__ = lambda s: s
         mock_response.__exit__ = MagicMock(return_value=False)
@@ -171,6 +171,15 @@ class TestIngest:
         jobs = get_jobs(db)
         by_company = {j.company: j for j in jobs}
         assert "Python" in by_company["Acme Corp"].tech_tags
+
+    def test_extracts_month_correctly(self, db):
+        with patch(
+            "urllib.request.urlopen", side_effect=_make_mock_urlopen(FAKE_THREAD_ID)
+        ):
+            ingest(db, thread_id=FAKE_THREAD_ID)
+
+        jobs = get_jobs(db)
+        assert all(j.month == "March 2024" for j in jobs)
 
     def test_idempotent_on_second_run(self, db):
         with patch(

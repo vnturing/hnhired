@@ -25,3 +25,4 @@ class Job(BaseModel):
     remote_type: str  # "global" | "us-only" | "eu-only" | "tz-limited" | "onsite"
     tech_tags: list[str]
     raw_text: str  # Original comment text, preserved for debugging.
+    month: str = ""  # e.g. "October 2026"

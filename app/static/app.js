@@ -17,6 +17,8 @@ function jobExplorer() {
     error: null,
 
     // Filter controls — bound to form inputs via x-model
+    monthFilter: "",
+    availableMonths: [],
     remoteFilter: "",
     techFilter: "",
     searchFilter: "",
@@ -44,6 +46,21 @@ function jobExplorer() {
         const resp = await fetch("/api/jobs");
         if (!resp.ok) throw new Error(`API error: ${resp.status}`);
         this.allJobs = await resp.json();
+
+        // Extract distinct months and sort descending (newest first)
+        const monthsSet = new Set();
+        for (const j of this.allJobs) {
+          if (j.month && j.month.trim()) {
+            monthsSet.add(j.month.trim());
+          }
+        }
+        this.availableMonths = this.sortMonths([...monthsSet]);
+
+        // Default to the most recent month if available
+        if (this.availableMonths.length > 0) {
+          this.monthFilter = this.availableMonths[0];
+        }
+
         this.applyFilters();
       } catch (err) {
         this.error = err.message;
@@ -55,6 +72,11 @@ function jobExplorer() {
     // ── Filtering ──────────────────────────────────────────────────────────
     applyFilters() {
       let jobs = this.allJobs;
+
+      // Filter by month
+      if (this.monthFilter) {
+        jobs = jobs.filter(j => j.month === this.monthFilter);
+      }
 
       // Hide dismissed jobs unless the user has toggled "show dismissed"
       if (!this.showDismissed) {
@@ -117,6 +139,24 @@ function jobExplorer() {
 
     get dismissedCount() { return this.dismissedIds.size; },
 
+    get monthJobCount() {
+      let jobs = this.allJobs;
+      if (this.monthFilter) {
+        jobs = jobs.filter(j => j.month === this.monthFilter);
+      }
+      if (!this.showDismissed) {
+        jobs = jobs.filter(j => !this.dismissedIds.has(j.hn_item_id));
+      }
+      return jobs.length;
+    },
+
+    get headerSubtitle() {
+      if (this.monthFilter) {
+        return `${this.monthFilter} • ${this.filtered.length} jobs`;
+      }
+      return `${this.allJobs.length} jobs indexed`;
+    },
+
     // ── Persistence ────────────────────────────────────────────────────────
     _saveViewed() {
       try {
@@ -131,6 +171,28 @@ function jobExplorer() {
     },
 
     // ── Helpers ────────────────────────────────────────────────────────────
+    sortMonths(months) {
+      const monthNames = [
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december"
+      ];
+      return months.sort((a, b) => {
+        const parse = (str) => {
+          const parts = str.trim().split(/\s+/);
+          if (parts.length === 2) {
+            const mIdx = monthNames.indexOf(parts[0].toLowerCase());
+            const yr = parseInt(parts[1], 10);
+            if (mIdx !== -1 && !isNaN(yr)) {
+              return yr * 100 + mIdx;
+            }
+          }
+          const t = Date.parse(str);
+          return isNaN(t) ? 0 : t;
+        };
+        return parse(b) - parse(a);
+      });
+    },
+
     remoteLabel(type) {
       const labels = {
         "global":     "🌍 Global Remote",

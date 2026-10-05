@@ -21,6 +21,7 @@ EXPECTED_JOB_KEYS = {
     "tech_tags",
     "raw_text",
     "hn_item_id",
+    "month",
 }
 
 

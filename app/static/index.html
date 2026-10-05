@@ -10,13 +10,21 @@
 
   <header>
     <h1>HN Who's Hiring Explorer</h1>
-    <span x-show="!loading" x-text="`${allJobs.length} jobs indexed`"></span>
+    <span x-show="!loading" x-text="headerSubtitle"></span>
   </header>
 
   <main>
 
     <!-- ── Filters ── -->
     <div class="filters">
+      <!-- Month filter -->
+      <select x-model="monthFilter" @change="applyFilters()" title="Filter by month">
+        <template x-for="m in availableMonths" :key="m">
+          <option :value="m" x-text="m"></option>
+        </template>
+        <option value="">All months</option>
+      </select>
+
       <select x-model="remoteFilter" @change="applyFilters()">
         <option value="">Any remote type</option>
         <option value="global">🌍 Global Remote</option>
@@ -50,7 +58,9 @@
     <!-- ── Result count ── -->
     <p class="count" x-show="!loading">
       Showing <strong x-text="filtered.length"></strong> of
-      <strong x-text="allJobs.length - (showDismissed ? 0 : dismissedCount)"></strong> jobs
+      <strong x-text="monthJobCount"></strong> jobs
+      <span x-show="monthFilter">for <strong x-text="monthFilter"></strong></span>
+      <span x-show="!monthFilter">(all months)</span>
     </p>
 
     <!-- ── Loading / error ── -->
@@ -75,6 +85,7 @@
               <span class="viewed-badge" x-show="isViewed(job.hn_item_id)">✓ opened</span>
             </div>
             <div class="job-card-actions">
+              <span class="job-month" x-show="job.month" x-text="job.month"></span>
               <span class="job-remote" x-text="remoteLabel(job.remote_type)"></span>
               <!-- Dismiss button — shown on normal cards -->
               <button

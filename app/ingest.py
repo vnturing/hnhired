@@ -22,9 +22,11 @@ We strip HTML before passing to the parser.
 import argparse
 import json
 import logging
+import re
 import sqlite3
 import sys
 import urllib.request
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -95,7 +97,29 @@ def _process_comment(comment: dict) -> dict:
     )
 
 
-def ingest(conn: sqlite3.Connection, *, thread_id: int) -> int:
+def extract_month_from_thread(thread: dict) -> str:
+    """Extract month string (e.g. 'October 2026') from thread title or timestamp."""
+    title = thread.get("title", "")
+    match = re.search(
+        r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b",
+        title,
+        re.IGNORECASE,
+    )
+    if match:
+        month_name = match.group(1).capitalize()
+        year = match.group(2)
+        return f"{month_name} {year}"
+
+    thread_time = thread.get("time")
+    if thread_time:
+        return datetime.fromtimestamp(thread_time, tz=timezone.utc).strftime("%B %Y")
+
+    return ""
+
+
+def ingest(
+    conn: sqlite3.Connection, *, thread_id: int, month: str | None = None
+) -> int:
     """Fetch *thread_id* from HN and insert all top-level comments as jobs.
 
     Returns the number of new rows inserted (duplicates are skipped silently).
@@ -103,6 +127,8 @@ def ingest(conn: sqlite3.Connection, *, thread_id: int) -> int:
     thread = _fetch_item(thread_id)
     if not thread:
         return 0
+
+    thread_month = month or extract_month_from_thread(thread)
 
     child_ids: list[int] = thread.get("kids", [])
     inserted = 0
@@ -113,7 +139,7 @@ def ingest(conn: sqlite3.Connection, *, thread_id: int) -> int:
             if not comment or comment.get("type") != "comment":
                 continue
             kwargs = _process_comment(comment)
-            insert_job(conn, **kwargs)
+            insert_job(conn, **kwargs, month=thread_month)
             inserted += 1
         except Exception as exc:  # noqa: BLE001
             log.warning("Skipping comment %d due to error: %s", comment_id, exc)
@@ -121,21 +147,17 @@ def ingest(conn: sqlite3.Connection, *, thread_id: int) -> int:
     return inserted
 
 
-def find_latest_hiring_thread() -> int | None:
-    """Find the ID of the most recent 'Ask HN: Who is hiring?' thread.
-
-    The HN 'whoishiring' account submits these automatically. We fetch their
-    profile, iterate over their recent submissions, and return the first one
-    whose title starts with 'Ask HN: Who is hiring?'.
-    """
+def find_hiring_threads(limit: int = 1) -> list[int]:
+    """Find the IDs of recent 'Ask HN: Who is hiring?' threads."""
     url = f"{HN_BASE_URL}/user/whoishiring.json"
     try:
-        with urllib.request.urlopen(url) as resp:
+        with urllib.request.urlopen(url, timeout=10) as resp:
             user_data = json.loads(resp.read())
-    except urllib.error.URLError:
-        return None
+    except (urllib.error.URLError, json.JSONDecodeError, OSError):
+        return []
 
     submitted = user_data.get("submitted", [])
+    threads: list[int] = []
 
     for item_id in submitted:
         item = _fetch_item(item_id)
@@ -144,9 +166,17 @@ def find_latest_hiring_thread() -> int | None:
 
         title = item.get("title", "")
         if title.startswith("Ask HN: Who is hiring?"):
-            return item_id
+            threads.append(item_id)
+            if len(threads) >= limit:
+                break
 
-    return None
+    return threads
+
+
+def find_latest_hiring_thread() -> int | None:
+    """Find the ID of the most recent 'Ask HN: Who is hiring?' thread."""
+    threads = find_hiring_threads(limit=1)
+    return threads[0] if threads else None
 
 
 if __name__ == "__main__":
@@ -155,24 +185,18 @@ if __name__ == "__main__":
         "thread_id",
         type=int,
         nargs="?",
-        help="Specific thread ID to ingest. If omitted, finds the latest thread automatically.",
+        help="Specific thread ID to ingest. If omitted, finds recent threads automatically.",
+    )
+    parser.add_argument(
+        "--months",
+        type=int,
+        default=1,
+        help="Number of recent monthly threads to ingest (default: 1).",
     )
     args = parser.parse_args()
 
-    thread_id = args.thread_id
-    if not thread_id:
-        print("Looking for the latest 'Who is hiring?' thread...")
-        thread_id = find_latest_hiring_thread()
-        if not thread_id:
-            print("Error: Could not find a recent 'Who is hiring?' thread.")
-            sys.exit(1)
-
-    print(f"Ingesting thread {thread_id}...")
-
     # We must construct the path reliably regardless of cwd.
     db_path = Path(__file__).parent.parent / "data" / "jobs.db"
-
-    # Ensure data dir exists
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     from app.db import init_db
@@ -180,6 +204,21 @@ if __name__ == "__main__":
     conn = sqlite3.connect(db_path)
     init_db(conn)
 
-    inserted = ingest(conn, thread_id=thread_id)
-    print(f"Done! Inserted {inserted} new jobs.")
+    if args.thread_id:
+        threads_to_ingest = [args.thread_id]
+    else:
+        print(f"Looking for the latest {args.months} 'Who is hiring?' thread(s)...")
+        threads_to_ingest = find_hiring_threads(limit=args.months)
+        if not threads_to_ingest:
+            print("Error: Could not find any recent 'Who is hiring?' threads.")
+            sys.exit(1)
+
+    total_inserted = 0
+    for tid in threads_to_ingest:
+        print(f"Ingesting thread {tid}...")
+        n = ingest(conn, thread_id=tid)
+        print(f"  → Inserted {n} new jobs from thread {tid}.")
+        total_inserted += n
+
+    print(f"Done! Total inserted: {total_inserted} new jobs.")
     conn.close()

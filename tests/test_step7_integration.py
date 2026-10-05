@@ -35,7 +35,7 @@ def client_with_db(db_conn):
     app.dependency_overrides.clear()
 
 
-def _insert(conn, *, hn_item_id, company, role, remote_type, tech_tags):
+def _insert(conn, *, hn_item_id, company, role, remote_type, tech_tags, month=""):
     insert_job(
         conn,
         hn_item_id=hn_item_id,
@@ -44,6 +44,7 @@ def _insert(conn, *, hn_item_id, company, role, remote_type, tech_tags):
         remote_type=remote_type,
         tech_tags=tech_tags,
         raw_text=f"{company} | {role}",
+        month=month,
     )
 
 
@@ -101,3 +102,52 @@ class TestJobsRouteWithDb:
         jobs = client_with_db.get("/api/jobs?tech=python").json()
         assert len(jobs) == 1
         assert jobs[0]["company"] == "PyCo"
+
+    def test_filter_month_from_db(self, client_with_db, db_conn):
+        _insert(
+            db_conn,
+            hn_item_id=1,
+            company="OctCo",
+            role="Eng",
+            remote_type="global",
+            tech_tags=[],
+            month="October 2026",
+        )
+        _insert(
+            db_conn,
+            hn_item_id=2,
+            company="SepCo",
+            role="Eng",
+            remote_type="global",
+            tech_tags=[],
+            month="September 2026",
+        )
+        jobs = client_with_db.get("/api/jobs?month=October+2026").json()
+        assert len(jobs) == 1
+        assert jobs[0]["company"] == "OctCo"
+        assert jobs[0]["month"] == "October 2026"
+
+
+class TestMonthsRouteWithDb:
+    def test_returns_sorted_months(self, client_with_db, db_conn):
+        _insert(
+            db_conn,
+            hn_item_id=1,
+            company="SepCo",
+            role="Eng",
+            remote_type="global",
+            tech_tags=[],
+            month="September 2026",
+        )
+        _insert(
+            db_conn,
+            hn_item_id=2,
+            company="OctCo",
+            role="Eng",
+            remote_type="global",
+            tech_tags=[],
+            month="October 2026",
+        )
+        res = client_with_db.get("/api/months")
+        assert res.status_code == 200
+        assert res.json() == ["October 2026", "September 2026"]

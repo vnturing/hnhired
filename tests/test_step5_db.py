@@ -15,7 +15,7 @@ connection for the test to use, then closes it.  No state leaks between tests.
 
 import sqlite3
 import pytest
-from app.db import init_db, insert_job, get_jobs
+from app.db import init_db, insert_job, get_jobs, get_months, sort_months
 from app.schemas import Job
 
 
@@ -98,3 +98,34 @@ class TestGetJobs:
         insert_job(db, **_sample_job(tech_tags=["Python", "FastAPI", "PostgreSQL"]))
         jobs = get_jobs(db)
         assert jobs[0].tech_tags == ["Python", "FastAPI", "PostgreSQL"]
+
+    def test_filter_by_month(self, db):
+        insert_job(db, **_sample_job(hn_item_id=1, month="October 2026"))
+        insert_job(db, **_sample_job(hn_item_id=2, month="September 2026"))
+        jobs = get_jobs(db, month="October 2026")
+        assert len(jobs) == 1
+        assert jobs[0].month == "October 2026"
+
+    def test_month_round_trip(self, db):
+        insert_job(db, **_sample_job(month="October 2026"))
+        jobs = get_jobs(db)
+        assert jobs[0].month == "October 2026"
+
+
+class TestGetMonths:
+    def test_sort_months(self):
+        unsorted = ["January 2026", "October 2026", "December 2025", "March 2026"]
+        assert sort_months(unsorted) == [
+            "October 2026",
+            "March 2026",
+            "January 2026",
+            "December 2025",
+        ]
+
+    def test_returns_distinct_sorted_months(self, db):
+        insert_job(db, **_sample_job(hn_item_id=1, month="September 2026"))
+        insert_job(db, **_sample_job(hn_item_id=2, month="October 2026"))
+        insert_job(db, **_sample_job(hn_item_id=3, month="August 2026"))
+        insert_job(db, **_sample_job(hn_item_id=4, month="September 2026"))  # duplicate
+        months = get_months(db)
+        assert months == ["October 2026", "September 2026", "August 2026"]

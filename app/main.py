@@ -22,7 +22,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import Depends, FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 
-from app.db import get_jobs as db_get_jobs, init_db
+from app.db import get_jobs as db_get_jobs, get_months as db_get_months, init_db
 from app.ingest import find_latest_hiring_thread, ingest
 from app.schemas import Job
 
@@ -112,6 +112,7 @@ def health() -> dict:
 def list_jobs(
     remote_type: str | None = Query(default=None),
     tech: str | None = Query(default=None),
+    month: str | None = Query(default=None),
     conn: sqlite3.Connection = Depends(get_db),
 ) -> list[Job]:
     """Return job listings from the database, optionally filtered.
@@ -119,8 +120,17 @@ def list_jobs(
     Query params:
       remote_type — exact match against job.remote_type
       tech        — case-insensitive substring match against tech_tags
+      month       — exact match against job.month (e.g. "October 2026")
     """
-    return db_get_jobs(conn, remote_type=remote_type, tech=tech)
+    return db_get_jobs(conn, remote_type=remote_type, tech=tech, month=month)
+
+
+@app.get("/api/months", response_model=list[str])
+def list_months(
+    conn: sqlite3.Connection = Depends(get_db),
+) -> list[str]:
+    """Return distinct months present in the database, ordered newest first."""
+    return db_get_months(conn)
 
 
 # ── Step 2: static files ──────────────────────────────────────────────────────
