@@ -82,7 +82,21 @@ _REMOTE_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Regional restricted remote (forces onsite instead of global)
     (
         re.compile(
-            r"\bremote\s*[\(\-\,:]\s*(india|uk|united kingdom|canada|latam|america|asia|australia)\b",
+            r"\bremote\s*(?:[\(\-\,:]|\bin\b|\bfrom\b|\bwithin\b|\s)\s*(india|uk|united kingdom|canada|latam|america|asia|australia)(?=[A-Z]|\b)",
+            re.I,
+        ),
+        "onsite",
+    ),
+    (
+        re.compile(
+            r"\b(india|uk|united kingdom|canada|latam|australia)\s*(?:[\(\-\,:]|\bonly\b|\bbased\b|\s)\s*remote\b",
+            re.I,
+        ),
+        "onsite",
+    ),
+    (
+        re.compile(
+            r"\b(located in|based in|living in)\s+(india|canada|latam|australia)\b",
             re.I,
         ),
         "onsite",

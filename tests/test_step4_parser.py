@@ -84,6 +84,11 @@ class TestClassifyRemote:
         assert classify_remote("Remote (India)") == "onsite"
         assert classify_remote("Remote, UK") == "onsite"
         assert classify_remote("Remote - LATAM") == "onsite"
+        assert classify_remote("Remote India") == "onsite"
+        assert classify_remote("Full Time, Remote India") == "onsite"
+        assert classify_remote("Remote in India") == "onsite"
+        assert classify_remote("Remote IndiaSingleStore") == "onsite"
+        assert classify_remote("hiring a Software Engineer located in India") == "onsite"
 
 
 # ── extract_tech_tags ─────────────────────────────────────────────────────────
