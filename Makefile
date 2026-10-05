@@ -30,7 +30,7 @@ ifndef NEW_VERSION
 	$(error NEW_VERSION is not set — call a release-* target, not _release directly)
 endif
 	@echo "Bumping $(CURRENT_VERSION) → $(NEW_VERSION)"
-	@sed -i 's/^version = "$(CURRENT_VERSION)"/version = "$(NEW_VERSION)"/' pyproject.toml
+	@sed -i '' 's/^version = "$(CURRENT_VERSION)"/version = "$(NEW_VERSION)"/' pyproject.toml
 	@git add pyproject.toml
 	@git commit -m "chore: release v$(NEW_VERSION)"
 	@git tag -a "v$(NEW_VERSION)" -m "Release v$(NEW_VERSION)"
