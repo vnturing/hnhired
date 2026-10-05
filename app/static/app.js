@@ -114,19 +114,31 @@ function jobExplorer() {
       }
 
       if (this.techFilter.trim()) {
-        const q = this.techFilter.trim().toLowerCase();
-        jobs = jobs.filter(j =>
-          j.tech_tags.some(t => t.toLowerCase().includes(q))
-        );
+        const raw = this.techFilter.trim();
+        const ast = parseSearchQuery(raw);
+        if (ast) {
+          jobs = jobs.filter(j => evaluateAst(ast, j, "tech"));
+        } else {
+          const q = raw.toLowerCase();
+          jobs = jobs.filter(j =>
+            j.tech_tags.some(t => t.toLowerCase().includes(q))
+          );
+        }
       }
 
       if (this.searchFilter.trim()) {
-        const q = this.searchFilter.trim().toLowerCase();
-        jobs = jobs.filter(j =>
-          j.company.toLowerCase().includes(q) ||
-          j.role.toLowerCase().includes(q) ||
-          j.raw_text.toLowerCase().includes(q)
-        );
+        const raw = this.searchFilter.trim();
+        const ast = parseSearchQuery(raw);
+        if (ast) {
+          jobs = jobs.filter(j => evaluateAst(ast, j, "all"));
+        } else {
+          const q = raw.toLowerCase();
+          jobs = jobs.filter(j =>
+            j.company.toLowerCase().includes(q) ||
+            j.role.toLowerCase().includes(q) ||
+            j.raw_text.toLowerCase().includes(q)
+          );
+        }
       }
 
       this.filtered = jobs;
@@ -259,4 +271,179 @@ function jobExplorer() {
       return `https://news.ycombinator.com/item?id=${hnItemId}`;
     },
   };
+}
+
+
+// ── Boolean Search Parser & Evaluator ────────────────────────────────────────
+
+/**
+ * Parse a search query containing C-style boolean operators into an AST:
+ *   &&, +, AND -> logical AND
+ *   ||, |, OR  -> logical OR
+ *   !, ~, NOT  -> logical NOT
+ *   ( )        -> grouping
+ *   "quoted"   -> exact phrase
+ */
+function parseSearchQuery(query) {
+  if (!query || !query.trim()) return null;
+
+  const tokens = [];
+  const regex =
+    /\s*(?:(\|\||\||\bOR\b)|(&&|&|\+|\bAND\b)|([!~]|\bNOT\b)|(\()|(\))|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s()|&!~+]+))\s*/gi;
+  let match;
+
+  while ((match = regex.exec(query)) !== null) {
+    if (match[1]) {
+      tokens.push({ type: "OR" });
+    } else if (match[2]) {
+      tokens.push({ type: "AND" });
+    } else if (match[3]) {
+      tokens.push({ type: "NOT" });
+    } else if (match[4]) {
+      tokens.push({ type: "LPAREN" });
+    } else if (match[5]) {
+      tokens.push({ type: "RPAREN" });
+    } else if (match[6]) {
+      let val = match[6];
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      }
+      tokens.push({ type: "TERM", value: val });
+    }
+  }
+
+  if (tokens.length === 0) return null;
+
+  let pos = 0;
+  function peek() {
+    return tokens[pos] || null;
+  }
+  function consume() {
+    return tokens[pos++];
+  }
+
+  function parseOr() {
+    let left = parseAnd();
+    if (!left) return null;
+    while (peek() && peek().type === "OR") {
+      consume();
+      const right = parseAnd();
+      if (!right) break;
+      left = { type: "OR", left, right };
+    }
+    return left;
+  }
+
+  function parseAnd() {
+    let left = parseNot();
+    if (!left) return null;
+    while (
+      peek() &&
+      (peek().type === "AND" ||
+        peek().type === "NOT" ||
+        peek().type === "LPAREN" ||
+        peek().type === "TERM")
+    ) {
+      if (peek().type === "AND") consume();
+      const right = parseNot();
+      if (!right) break;
+      left = { type: "AND", left, right };
+    }
+    return left;
+  }
+
+  function parseNot() {
+    if (peek() && peek().type === "NOT") {
+      consume();
+      const operand = parseNot();
+      if (!operand) return null;
+      return { type: "NOT", expr: operand };
+    }
+    return parsePrimary();
+  }
+
+  function parsePrimary() {
+    const token = peek();
+    if (!token) return null;
+    if (token.type === "LPAREN") {
+      consume();
+      const expr = parseOr();
+      if (peek() && peek().type === "RPAREN") consume();
+      return expr;
+    }
+    if (token.type === "TERM") {
+      consume();
+      return { type: "TERM", value: token.value };
+    }
+    return null;
+  }
+
+  try {
+    return parseOr();
+  } catch (_) {
+    return null;
+  }
+}
+
+function matchTerm(job, term, mode = "all") {
+  if (!term) return true;
+  const q = term.trim().toLowerCase();
+  if (!q) return true;
+
+  // 1. Check in tech_tags
+  if (job.tech_tags && job.tech_tags.length > 0) {
+    for (const tag of job.tech_tags) {
+      const tLower = tag.toLowerCase();
+      if (tLower === q) return true;
+      if (q.length > 2 && tLower.includes(q)) return true;
+    }
+  }
+
+  if (mode === "tech") {
+    // In tech mode, check raw_text with word boundary so e.g. standalone "C" or "C++" matches
+    if (job.raw_text) {
+      if (q.length <= 2) {
+        const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (new RegExp(`\\b${escaped}\\b`, "i").test(job.raw_text)) return true;
+      } else {
+        if (job.raw_text.toLowerCase().includes(q)) return true;
+      }
+    }
+    return false;
+  }
+
+  // 2. Check company and role
+  if (job.company && job.company.toLowerCase().includes(q)) return true;
+  if (job.role && job.role.toLowerCase().includes(q)) return true;
+
+  // 3. Check raw_text
+  if (job.raw_text) {
+    if (q.length <= 2) {
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`\\b${escaped}\\b`, "i").test(job.raw_text)) return true;
+    } else {
+      if (job.raw_text.toLowerCase().includes(q)) return true;
+    }
+  }
+
+  return false;
+}
+
+function evaluateAst(ast, job, mode = "all") {
+  if (!ast) return true;
+  switch (ast.type) {
+    case "AND":
+      return evaluateAst(ast.left, job, mode) && evaluateAst(ast.right, job, mode);
+    case "OR":
+      return evaluateAst(ast.left, job, mode) || evaluateAst(ast.right, job, mode);
+    case "NOT":
+      return !evaluateAst(ast.expr, job, mode);
+    case "TERM":
+      return matchTerm(job, ast.value, mode);
+    default:
+      return true;
+  }
 }

@@ -179,6 +179,58 @@ def find_latest_hiring_thread() -> int | None:
     return threads[0] if threads else None
 
 
+def backfill_empty_months(conn: sqlite3.Connection) -> int:
+    """Backfill month for any jobs where month is empty or NULL.
+
+    Fetches recent hiring threads and maps comments to their parent thread month.
+    Returns the number of jobs updated.
+    """
+    rows = conn.execute(
+        "SELECT id, hn_item_id FROM jobs WHERE month IS NULL OR month = ''"
+    ).fetchall()
+    if not rows:
+        return 0
+
+    log.info("Backfilling month for %d jobs with empty month", len(rows))
+
+    recent_threads = find_hiring_threads(limit=12)
+    thread_month_map: dict[int, str] = {}
+    comment_to_month: dict[int, str] = {}
+
+    for tid in recent_threads:
+        thread = _fetch_item(tid)
+        if not thread:
+            continue
+        m = extract_month_from_thread(thread)
+        if m:
+            thread_month_map[tid] = m
+            for kid_id in thread.get("kids", []):
+                comment_to_month[kid_id] = m
+
+    updated = 0
+    for job_id, hn_item_id in rows:
+        m = comment_to_month.get(hn_item_id)
+        if not m:
+            comment = _fetch_item(hn_item_id)
+            if comment and "parent" in comment:
+                parent_id = comment["parent"]
+                if parent_id not in thread_month_map:
+                    parent_thread = _fetch_item(parent_id)
+                    if parent_thread:
+                        thread_month_map[parent_id] = extract_month_from_thread(
+                            parent_thread
+                        )
+                m = thread_month_map.get(parent_id)
+
+        if m:
+            conn.execute("UPDATE jobs SET month = ? WHERE id = ?", (m, job_id))
+            updated += 1
+
+    conn.commit()
+    log.info("Successfully backfilled month for %d jobs", updated)
+    return updated
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest HN 'Who is hiring?' threads.")
     parser.add_argument(

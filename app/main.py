@@ -64,6 +64,43 @@ def _run_ingest() -> None:
         conn.close()
 
 
+def _run_maintenance() -> None:
+    """Run database maintenance in background: backfill months and refresh remote classification."""
+    log.info("Startup maintenance: starting")
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
+    init_db(conn)
+    try:
+        from app.ingest import backfill_empty_months
+        from app.parser import classify_remote
+
+        n_backfilled = backfill_empty_months(conn)
+
+        # Also refresh remote classification in case parser rules were updated
+        rows = conn.execute("SELECT id, remote_type, raw_text FROM jobs").fetchall()
+        n_reclassified = 0
+        for job_id, old_type, text in rows:
+            new_type = classify_remote(text)
+            if new_type != old_type:
+                conn.execute(
+                    "UPDATE jobs SET remote_type = ? WHERE id = ?",
+                    (new_type, job_id),
+                )
+                n_reclassified += 1
+        if n_reclassified > 0:
+            conn.commit()
+            log.info("Startup maintenance: reclassified %d jobs", n_reclassified)
+        log.info(
+            "Startup maintenance: completed (backfilled: %d, reclassified: %d)",
+            n_backfilled,
+            n_reclassified,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Startup maintenance encountered an error: %s", exc)
+    finally:
+        conn.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start the background scheduler; run an initial ingest if the DB is empty."""
@@ -74,7 +111,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(_run_ingest, "cron", hour=9, minute=0)
     scheduler.start()
 
-    # On first boot (empty DB), populate immediately so the UI isn't blank.
+    # On boot, populate if DB is empty; otherwise check if maintenance/backfill is needed.
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
     init_db(conn)
@@ -83,6 +120,16 @@ async def lifespan(app: FastAPI):
         if not jobs:
             log.info("Database is empty — kicking off initial ingest in background")
             threading.Thread(target=_run_ingest, daemon=True).start()
+        else:
+            empty_months = conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE month IS NULL OR month = ''"
+            ).fetchone()[0]
+            if empty_months > 0:
+                log.info(
+                    "Found %d jobs with empty month — running maintenance in background",
+                    empty_months,
+                )
+                threading.Thread(target=_run_maintenance, daemon=True).start()
     finally:
         conn.close()
 

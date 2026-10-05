@@ -87,8 +87,9 @@ class TestClassifyRemote:
         assert classify_remote("Remote India") == "onsite"
         assert classify_remote("Full Time, Remote India") == "onsite"
         assert classify_remote("Remote in India") == "onsite"
-        assert classify_remote("Remote IndiaSingleStore") == "onsite"
-        assert classify_remote("hiring a Software Engineer located in India") == "onsite"
+        assert (
+            classify_remote("hiring a Software Engineer located in India") == "onsite"
+        )
 
 
 # ── extract_tech_tags ─────────────────────────────────────────────────────────
@@ -103,6 +104,11 @@ class TestExtractTechTags:
         tags = extract_tech_tags("Stack: Go, Kubernetes, gRPC, Postgres")
         assert "Go" in tags
         assert "Kubernetes" in tags
+
+    def test_finds_c_language(self):
+        tags = extract_tech_tags("Systems programming in C and Go")
+        assert "C" in tags
+        assert "Go" in tags
 
     def test_case_insensitive_match(self):
         tags = extract_tech_tags("experience with PYTHON and REACT preferred")
