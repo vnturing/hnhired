@@ -32,7 +32,7 @@ function jobExplorer() {
 
     // ── Lifecycle ──────────────────────────────────────────────────────────
     async init() {
-      // Rehydrate from localStorage
+      // Rehydrate viewed / dismissed from localStorage
       try {
         const v = localStorage.getItem("hn_viewed");
         if (v) this.viewedIds = new Set(JSON.parse(v));
@@ -41,6 +41,27 @@ function jobExplorer() {
         const d = localStorage.getItem("hn_dismissed");
         if (d) this.dismissedIds = new Set(JSON.parse(d));
       } catch (_) {}
+
+      // Rehydrate filter preferences from localStorage and URL parameters
+      let savedFilters = {};
+      try {
+        const f = localStorage.getItem("hn_filters");
+        if (f) savedFilters = JSON.parse(f);
+      } catch (_) {}
+
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has("month")) savedFilters.month = urlParams.get("month");
+        if (urlParams.has("remote")) savedFilters.remote = urlParams.get("remote");
+        if (urlParams.has("tech")) savedFilters.tech = urlParams.get("tech");
+        if (urlParams.has("q")) savedFilters.search = urlParams.get("q");
+        if (urlParams.has("dismissed")) savedFilters.showDismissed = urlParams.get("dismissed") === "true";
+      } catch (_) {}
+
+      if (savedFilters.remote !== undefined) this.remoteFilter = savedFilters.remote;
+      if (savedFilters.tech !== undefined) this.techFilter = savedFilters.tech;
+      if (savedFilters.search !== undefined) this.searchFilter = savedFilters.search;
+      if (savedFilters.showDismissed !== undefined) this.showDismissed = !!savedFilters.showDismissed;
 
       try {
         const resp = await fetch("/api/jobs");
@@ -56,8 +77,13 @@ function jobExplorer() {
         }
         this.availableMonths = this.sortMonths([...monthsSet]);
 
-        // Default to the most recent month if available
-        if (this.availableMonths.length > 0) {
+        // If user had a saved monthFilter preference, use it if valid; otherwise default to newest month
+        if (
+          savedFilters.month !== undefined &&
+          (savedFilters.month === "" || this.availableMonths.includes(savedFilters.month))
+        ) {
+          this.monthFilter = savedFilters.month;
+        } else if (this.availableMonths.length > 0) {
           this.monthFilter = this.availableMonths[0];
         }
 
@@ -104,6 +130,7 @@ function jobExplorer() {
       }
 
       this.filtered = jobs;
+      this._saveFilters();
     },
 
     // ── Viewed / Dismissed actions ─────────────────────────────────────────
@@ -167,6 +194,30 @@ function jobExplorer() {
     _saveDismissed() {
       try {
         localStorage.setItem("hn_dismissed", JSON.stringify([...this.dismissedIds]));
+      } catch (_) {}
+    },
+
+    _saveFilters() {
+      try {
+        const filters = {
+          month: this.monthFilter,
+          remote: this.remoteFilter,
+          tech: this.techFilter,
+          search: this.searchFilter,
+          showDismissed: this.showDismissed,
+        };
+        localStorage.setItem("hn_filters", JSON.stringify(filters));
+
+        // Update URL query parameters cleanly without full page refresh
+        const params = new URLSearchParams();
+        if (this.monthFilter) params.set("month", this.monthFilter);
+        if (this.remoteFilter) params.set("remote", this.remoteFilter);
+        if (this.techFilter.trim()) params.set("tech", this.techFilter.trim());
+        if (this.searchFilter.trim()) params.set("q", this.searchFilter.trim());
+        if (this.showDismissed) params.set("dismissed", "true");
+
+        const query = params.toString() ? `?${params.toString()}` : "";
+        window.history.replaceState(null, "", window.location.pathname + query);
       } catch (_) {}
     },
 
