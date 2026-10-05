@@ -41,7 +41,7 @@ endif
 
 # ── Dev helpers ───────────────────────────────────────────────────────────────
 
-.PHONY: dev test lint fmt ingest
+.PHONY: dev test lint fmt ingest backfill
 
 dev:
 	uv run fastapi dev app/main.py
@@ -57,3 +57,6 @@ fmt:
 
 ingest:
 	uv run python -m app.ingest
+
+backfill:
+	uv run python -c "import sqlite3; from app.db import init_db; from app.ingest import backfill_empty_months; conn = sqlite3.connect('data/jobs.db'); init_db(conn); n = backfill_empty_months(conn); print(f'Backfilled {n} jobs'); conn.close()"
